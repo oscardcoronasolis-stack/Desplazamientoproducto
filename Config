@@ -1,0 +1,61 @@
+/**
+ * Configuración centralizada del proyecto
+ */
+
+const CONFIG = {
+  // BigQuery
+  PROJECT_ID: 'ivonne-399623',
+  DATASET_ID: 'IVONNE',
+  TABLE_ID: 'BoutiquesMCTTiendaCURVABDD',
+  
+  // Columnas disponibles para filtros
+
+
+FILTER_COLUMNS: [
+  '_Temp',
+  'Linea',
+  'Collection',
+  'Tienda',
+  'Cat_1',
+  'Cat_2',
+  'MODELO',
+  'COLOR',
+  'TALLA'
+],
+
+// Dependencias entre filtros (hijo: [padres])
+FILTER_DEPENDENCIES: {
+  'Collection': ['Linea'],
+  'Tienda': ['Linea', 'Collection'],
+  'Cat_1': ['Linea', 'Collection'],
+  'Cat_2': ['Linea', 'Collection', 'Cat_1'],
+  'MODELO': ['Linea', 'Collection', 'Cat_1', 'Cat_2'],
+  'COLOR': ['Linea', 'Collection', 'Cat_1', 'MODELO'],
+  'TALLA': ['Linea', 'Collection', 'Cat_1', 'MODELO', 'COLOR']
+}
+,
+  
+  // Mapeo de nombres legibles
+  COLUMN_LABELS: {
+    '_Temp': 'Temporada',
+    'Linea': 'Línea',
+    'Collection': 'Colección',
+    'Tienda': 'Tienda',
+    'Cat_1': 'Categoría',
+    'Cat_2': 'Subcategoría',
+    'MODELO': 'Modelo',
+    'COLOR': 'Color',
+    'TALLA': 'Talla'
+  },
+  
+  // Métricas calculadas
+  METRICS: {
+    INVENTARIO: 'Total_ATShip',
+    VENTA: 'Total_Qty_x_Size',
+    COMPRA: 'compra'
+  }
+};
+
+function getFullTablePath() {
+  return `\`${CONFIG.PROJECT_ID}.${CONFIG.DATASET_ID}.${CONFIG.TABLE_ID}\``;
+}
