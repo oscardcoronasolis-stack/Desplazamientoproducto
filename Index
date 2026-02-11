@@ -1,0 +1,144 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <?!= include('Estilos'); ?>
+</head>
+<body>
+  
+  <!-- Header -->
+  <header class="header">
+    <div class="header-content">
+      <div class="header-left">
+        <h1 class="header-title">Producto Desplazamiento</h1>
+        <span class="header-subtitle">PV-2026</span>
+      </div>
+      <div class="header-right">
+        <button class="btn-icon" id="btnRefresh" title="Actualizar">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M21.5 2v6h-6M2.5 22v-6h6M2 11.5a10 10 0 0 1 18.8-4.3M22 12.5a10 10 0 0 1-18.8 4.2"/>
+          </svg>
+        </button>
+        <button class="btn-clear-all" id="btnClearAll">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M18 6L6 18M6 6l12 12"/>
+          </svg>
+          Limpiar Todo
+        </button>
+      </div>
+    </div>
+  </header>
+
+  <!-- Filtros Horizontales -->
+  <section class="filters-bar">
+    <div class="filters-horizontal" id="filtersHorizontal">
+      <!-- Filtros cargados dinámicamente -->
+    </div>
+  </section>
+
+  <!-- Contenido Principal -->
+  <main class="main-content">
+    
+    <!-- KPIs -->
+    <section class="kpi-grid">
+      
+      <div class="kpi-card">
+        <div class="kpi-content">
+          <span class="kpi-label">Compra</span>
+          <span class="kpi-value" id="kpiCompra">0</span>
+          <span class="kpi-unit">piezas</span>
+        </div>
+      </div>
+
+      <div class="kpi-card">
+        <div class="kpi-content">
+          <span class="kpi-label">Venta</span>
+          <span class="kpi-value" id="kpiVenta">0</span>
+          <span class="kpi-unit">piezas</span>
+        </div>
+      </div>
+
+      <div class="kpi-card">
+        <div class="kpi-content">
+          <span class="kpi-label">Inventario</span>
+          <span class="kpi-value" id="kpiInventario">0</span>
+          <span class="kpi-unit">piezas</span>
+        </div>
+      </div>
+
+      <div class="kpi-card">
+        <div class="kpi-content">
+          <span class="kpi-label">% ST</span>
+          <span class="kpi-value" id="kpiPorcentaje">0%</span>
+        </div>
+      </div>
+
+    </section>
+
+    <!-- Tablas en Grid -->
+    <section class="tables-grid">
+      
+      <!-- Tabla Tiendas -->
+      <div class="table-section">
+        <div class="table-header">
+          <h2 class="table-title">Tiendas</h2>
+        </div>
+        <div class="table-container">
+          <table class="data-table compact-table" id="dataTableTiendas">
+            <thead id="headerTiendas">
+              <tr>
+                <th data-column="tienda">Tienda</th>
+                <th class="text-center sortable" data-column="compra">Compra</th>
+                <th class="text-center sortable" data-column="venta">Venta</th>
+                <th class="text-center sortable" data-column="inventario">Inv.</th>
+                <th class="text-right sortable" data-column="porcentajeST">% ST</th>
+              </tr>
+            </thead>
+            <tbody id="tableBodyTiendas">
+              <!-- Datos dinámicos -->
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      <!-- Tabla Modelos -->
+      <div class="table-section">
+        <div class="table-header">
+          <h2 class="table-title">Modelos</h2>
+        </div>
+        <div class="table-container">
+          <table class="data-table compact-table" id="dataTableModelos">
+            <thead id="headerModelos">
+              <tr>
+                <th data-column="modelo">Modelo</th>
+                <th data-column="categoria">Categoría</th>
+                <th class="text-center sortable" data-column="compra">Compra</th>
+                <th class="text-center sortable" data-column="venta">Venta</th>
+                <th class="text-center sortable" data-column="inventario">Inv.</th>
+                <th class="text-right sortable" data-column="porcentajeST">% ST</th>
+              </tr>
+            </thead>
+            <tbody id="tableBodyModelos">
+              <!-- Datos dinámicos -->
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+    </section>
+
+    <div class="loading" id="loading">
+      <div class="spinner"></div>
+      <p>Cargando datos...</p>
+    </div>
+
+  </main>
+
+  <?!= include('Funciones'); ?>
+  
+</body>
+</html>
