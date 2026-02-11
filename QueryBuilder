@@ -1,0 +1,130 @@
+/**
+ * Construcción dinámica de queries SQL
+ */
+
+function buildDashboardQuery(filters = {}) {
+  const tablePath = getFullTablePath();
+  
+  // WHERE dinámico
+  const whereConditions = [];
+  
+  Object.keys(filters).forEach(column => {
+    const values = filters[column];
+    if (values && values.length > 0) {
+      const escapedValues = values.map(v => `'${v.replace(/'/g, "\\'")}'`).join(',');
+      whereConditions.push(`${column} IN (${escapedValues})`);
+    }
+  });
+  
+  const whereClause = whereConditions.length > 0 
+    ? `WHERE ${whereConditions.join(' AND ')}` 
+    : '';
+  
+  // Query principal
+  const sql = `
+    SELECT
+      SUM(${CONFIG.METRICS.INVENTARIO}) AS Inventario,
+      SUM(${CONFIG.METRICS.VENTA}) AS Venta,
+      SUM(${CONFIG.METRICS.COMPRA}) AS Compra,
+      SAFE_DIVIDE(SUM(${CONFIG.METRICS.VENTA}), SUM(${CONFIG.METRICS.COMPRA})) AS PorcentajeST
+    FROM ${tablePath}
+    ${whereClause}
+  `;
+  
+  return sql;
+}
+
+function buildTableQuery(filters = {}, selectedModels = []) {
+  const tablePath = getFullTablePath();
+  
+  const whereConditions = [];
+  
+  // Aplicar filtros generales (NO incluir MODELO aquí)
+  Object.keys(filters).forEach(column => {
+    if (column === 'MODELO') return; // Ignorar filtro MODELO aquí
+    
+    const values = filters[column];
+    if (values && values.length > 0) {
+      const escapedValues = values.map(v => `'${v.replace(/'/g, "\\'")}'`).join(',');
+      whereConditions.push(`${column} IN (${escapedValues})`);
+    }
+  });
+  
+  // Filtro de modelos seleccionados en la tabla
+  if (selectedModels && selectedModels.length > 0) {
+    const numericModels = selectedModels.join(',');
+    whereConditions.push(`MODELO IN (${numericModels})`);
+  }
+  
+  const whereClause = whereConditions.length > 0 
+    ? `WHERE ${whereConditions.join(' AND ')}` 
+    : '';
+  
+  const sql = `
+    WITH Aggregated AS (
+      SELECT
+        Tienda,
+        SUM(${CONFIG.METRICS.COMPRA}) AS Compra,
+        SUM(${CONFIG.METRICS.VENTA}) AS Venta,
+        SUM(${CONFIG.METRICS.INVENTARIO}) AS Inventario,
+        SAFE_DIVIDE(SUM(${CONFIG.METRICS.VENTA}), SUM(${CONFIG.METRICS.COMPRA})) AS PorcentajeST
+      FROM ${tablePath}
+      ${whereClause}
+      GROUP BY Tienda
+    )
+    SELECT *
+    FROM Aggregated
+    WHERE Compra >= 3
+    ORDER BY PorcentajeST DESC
+  `;
+  
+  return sql;
+}
+
+function buildModelTableQuery(filters = {}, selectedStores = []) {
+  const tablePath = getFullTablePath();
+  
+  const whereConditions = [];
+  
+  // Aplicar filtros generales (NO incluir Tienda aquí)
+  Object.keys(filters).forEach(column => {
+    if (column === 'Tienda') return; // Ignorar filtro Tienda aquí
+    
+    const values = filters[column];
+    if (values && values.length > 0) {
+      const escapedValues = values.map(v => `'${v.replace(/'/g, "\\'")}'`).join(',');
+      whereConditions.push(`${column} IN (${escapedValues})`);
+    }
+  });
+  
+  // Filtro de tiendas seleccionadas en la tabla
+  if (selectedStores && selectedStores.length > 0) {
+    const escapedStores = selectedStores.map(v => `'${v.replace(/'/g, "\\'")}'`).join(',');
+    whereConditions.push(`Tienda IN (${escapedStores})`);
+  }
+  
+  const whereClause = whereConditions.length > 0 
+    ? `WHERE ${whereConditions.join(' AND ')}` 
+    : '';
+  
+  const sql = `
+    WITH Aggregated AS (
+      SELECT
+        MODELO,
+        MAX(Cat_1) AS Categoria,
+        SUM(${CONFIG.METRICS.COMPRA}) AS Compra,
+        SUM(${CONFIG.METRICS.VENTA}) AS Venta,
+        SUM(${CONFIG.METRICS.INVENTARIO}) AS Inventario,
+        SAFE_DIVIDE(SUM(${CONFIG.METRICS.VENTA}), SUM(${CONFIG.METRICS.COMPRA})) AS PorcentajeST
+      FROM ${tablePath}
+      ${whereClause}
+      GROUP BY MODELO
+    )
+    SELECT *
+    FROM Aggregated
+    WHERE Compra >= 3
+    ORDER BY PorcentajeST DESC
+  `;
+  
+  return sql;
+}
