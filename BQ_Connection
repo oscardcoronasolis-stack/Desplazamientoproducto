@@ -1,0 +1,74 @@
+/**
+ * Manejo exclusivo de conexión con BigQuery
+ */
+
+function runBigQueryJob(sqlQuery) {
+  try {
+    const request = {
+      query: sqlQuery,
+      useLegacySql: false,
+      timeoutMs: 60000
+    };
+    
+    const queryResults = BigQuery.Jobs.query(request, CONFIG.PROJECT_ID);
+    const jobId = queryResults.jobReference.jobId;
+    
+    let results = BigQuery.Jobs.getQueryResults(CONFIG.PROJECT_ID, jobId);
+    
+    // Esperar si el job no terminó
+    while (!results.jobComplete) {
+      Utilities.sleep(500);
+      results = BigQuery.Jobs.getQueryResults(CONFIG.PROJECT_ID, jobId);
+    }
+    
+    return results.rows || [];
+    
+  } catch (error) {
+    Logger.log('Error en BigQuery: ' + error.message);
+    throw new Error('Error al ejecutar consulta: ' + error.message);
+  }
+}
+
+function getDistinctValues(columnName) {
+  const sql = `
+    SELECT DISTINCT ${columnName}
+    FROM ${getFullTablePath()}
+    WHERE ${columnName} IS NOT NULL
+    ORDER BY ${columnName}
+  `;
+  
+  const rows = runBigQueryJob(sql);
+  return rows.map(row => row.f[0].v);
+}
+
+function getFilteredDistinctValues(columnName, activeFilters) {
+  const whereConditions = [];
+  
+  // Aplicar TODOS los filtros activos
+  Object.keys(activeFilters).forEach(filterColumn => {
+    // No aplicar el mismo filtro que estamos consultando
+    if (filterColumn === columnName) return;
+    
+    const values = activeFilters[filterColumn];
+    if (values && values.length > 0) {
+      const escapedValues = values.map(v => `'${v.replace(/'/g, "\\'")}'`).join(',');
+      whereConditions.push(`${filterColumn} IN (${escapedValues})`);
+    }
+  });
+  
+  whereConditions.push(`${columnName} IS NOT NULL`);
+  
+  const whereClause = `WHERE ${whereConditions.join(' AND ')}`;
+  
+  const sql = `
+    SELECT DISTINCT ${columnName}
+    FROM ${getFullTablePath()}
+    ${whereClause}
+    ORDER BY ${columnName}
+  `;
+  
+  Logger.log('SQL para ' + columnName + ': ' + sql);
+  
+  const rows = runBigQueryJob(sql);
+  return rows.map(row => row.f[0].v);
+}
