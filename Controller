@@ -1,0 +1,139 @@
+/**
+ * Controlador principal - Interfaz con el frontend
+ */
+
+function doGet() {
+  return HtmlService
+    .createTemplateFromFile('Index')
+    .evaluate()
+    .setTitle('Dashboard - Desplazamiento')
+    .setFaviconUrl('https://www.gstatic.com/images/branding/product/1x/apps_script_48dp.png');
+}
+
+function include(filename) {
+  return HtmlService.createHtmlOutputFromFile(filename).getContent();
+}
+
+function getFilterOptions(columnName) {
+  try {
+    return getDistinctValues(columnName);
+  } catch (error) {
+    Logger.log('Error obteniendo opciones: ' + error);
+    return [];
+  }
+}
+
+function getDashboardData(filters) {
+  try {
+    const sql = buildDashboardQuery(filters);
+    const rows = runBigQueryJob(sql);
+    
+    if (rows.length === 0) {
+      return {
+        inventario: 0,
+        venta: 0,
+        compra: 0,
+        porcentajeST: 0
+      };
+    }
+    
+    const row = rows[0].f;
+    return {
+      inventario: parseFloat(row[0].v || 0),
+      venta: parseFloat(row[1].v || 0),
+      compra: parseFloat(row[2].v || 0),
+      porcentajeST: parseFloat(row[3].v || 0) * 100
+    };
+    
+  } catch (error) {
+    Logger.log('Error obteniendo datos: ' + error);
+    throw error;
+  }
+}
+
+function getInitialFilterData() {
+  const filterData = {};
+  
+  CONFIG.FILTER_COLUMNS.forEach(column => {
+    filterData[column] = {
+      label: CONFIG.COLUMN_LABELS[column],
+      options: getDistinctValues(column)
+    };
+  });
+  
+  return filterData;
+}
+
+function getFilterOptionsWithDependency(columnName, activeFilters) {
+  try {
+    // Si no hay filtros activos que afecten a esta columna, traer todos
+    const dependencies = CONFIG.FILTER_DEPENDENCIES[columnName] || [];
+    const hasRelevantFilters = dependencies.some(dep => 
+      activeFilters[dep] && activeFilters[dep].length > 0
+    );
+    
+    if (!hasRelevantFilters && Object.keys(activeFilters).length === 0) {
+      return getDistinctValues(columnName);
+    }
+    
+    // Construir filtros solo con las dependencias relevantes
+    const relevantFilters = {};
+    dependencies.forEach(dep => {
+      if (activeFilters[dep] && activeFilters[dep].length > 0) {
+        relevantFilters[dep] = activeFilters[dep];
+      }
+    });
+    
+    // Si tenemos filtros relevantes, aplicarlos
+    if (Object.keys(relevantFilters).length > 0) {
+      return getFilteredDistinctValues(columnName, relevantFilters);
+    }
+    
+    return getDistinctValues(columnName);
+    
+  } catch (error) {
+    Logger.log('Error obteniendo opciones dependientes: ' + error);
+    return [];
+  }
+}
+
+
+function getTableData(filters, selectedModels) {
+  try {
+    const sql = buildTableQuery(filters, selectedModels);
+    const rows = runBigQueryJob(sql);
+    
+    return rows.map(row => ({
+      tienda: row.f[0].v,
+      compra: parseFloat(row.f[1].v || 0),
+      venta: parseFloat(row.f[2].v || 0),
+      inventario: parseFloat(row.f[3].v || 0),
+      porcentajeST: parseFloat(row.f[4].v || 0) * 100
+    }));
+    
+  } catch (error) {
+    Logger.log('Error obteniendo tabla: ' + error);
+    throw error;
+  }
+}
+
+function getModelTableData(filters, selectedStores) {
+  try {
+    const sql = buildModelTableQuery(filters, selectedStores);
+    const rows = runBigQueryJob(sql);
+    
+    return rows.map(row => ({
+    
+    modelo: row.f[0].v,
+categoria: row.f[1].v,
+      compra: parseFloat(row.f[2].v || 0),
+      venta: parseFloat(row.f[3].v || 0),
+      inventario: parseFloat(row.f[4].v || 0),
+      porcentajeST: parseFloat(row.f[5].v || 0) * 100
+    }));
+    
+  } catch (error) {
+    Logger.log('Error obteniendo tabla modelos: ' + error);
+    throw error;
+  }
+}
