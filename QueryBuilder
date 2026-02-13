@@ -2,17 +2,24 @@
  * Construcción dinámica de queries SQL
  */
 
+
+
 function buildDashboardQuery(filters = {}) {
   const tablePath = getFullTablePath();
   
-  // WHERE dinámico
   const whereConditions = [];
   
   Object.keys(filters).forEach(column => {
     const values = filters[column];
     if (values && values.length > 0) {
-      const escapedValues = values.map(v => `'${v.replace(/'/g, "\\'")}'`).join(',');
-      whereConditions.push(`${column} IN (${escapedValues})`);
+      // Manejar MODELO como numérico
+      if (column === 'MODELO') {
+        const numericValues = values.join(',');
+        whereConditions.push(`${column} IN (${numericValues})`);
+      } else {
+        const escapedValues = values.map(v => `'${v.replace(/'/g, "\\'")}'`).join(',');
+        whereConditions.push(`${column} IN (${escapedValues})`);
+      }
     }
   });
   
@@ -20,7 +27,6 @@ function buildDashboardQuery(filters = {}) {
     ? `WHERE ${whereConditions.join(' AND ')}` 
     : '';
   
-  // Query principal
   const sql = `
     SELECT
       SUM(${CONFIG.METRICS.INVENTARIO}) AS Inventario,
@@ -34,26 +40,41 @@ function buildDashboardQuery(filters = {}) {
   return sql;
 }
 
-function buildTableQuery(filters = {}, selectedModels = []) {
+
+function buildTableQuery(filters = {}, selectedModels = [], selectedCollections = [], selectedCategorias = []) {
   const tablePath = getFullTablePath();
   
   const whereConditions = [];
   
-  // Aplicar filtros generales (NO incluir MODELO aquí)
+  // Aplicar filtros globales
   Object.keys(filters).forEach(column => {
-    if (column === 'MODELO') return; // Ignorar filtro MODELO aquí
-    
     const values = filters[column];
     if (values && values.length > 0) {
-      const escapedValues = values.map(v => `'${v.replace(/'/g, "\\'")}'`).join(',');
-      whereConditions.push(`${column} IN (${escapedValues})`);
+      // Manejar MODELO como numérico
+      if (column === 'MODELO') {
+        const numericValues = values.join(',');
+        whereConditions.push(`${column} IN (${numericValues})`);
+      } else {
+        const escapedValues = values.map(v => `'${v.replace(/'/g, "\\'")}'`).join(',');
+        whereConditions.push(`${column} IN (${escapedValues})`);
+      }
     }
   });
   
-  // Filtro de modelos seleccionados en la tabla
+  // Filtros de selecciones en tablas
   if (selectedModels && selectedModels.length > 0) {
     const numericModels = selectedModels.join(',');
     whereConditions.push(`MODELO IN (${numericModels})`);
+  }
+  
+  if (selectedCollections && selectedCollections.length > 0) {
+    const escapedCollections = selectedCollections.map(v => `'${v.replace(/'/g, "\\'")}'`).join(',');
+    whereConditions.push(`Collection IN (${escapedCollections})`);
+  }
+  
+  if (selectedCategorias && selectedCategorias.length > 0) {
+    const escapedCategorias = selectedCategorias.map(v => `'${v.replace(/'/g, "\\'")}'`).join(',');
+    whereConditions.push(`Cat_1 IN (${escapedCategorias})`);
   }
   
   const whereClause = whereConditions.length > 0 
@@ -75,32 +96,47 @@ function buildTableQuery(filters = {}, selectedModels = []) {
     SELECT *
     FROM Aggregated
     WHERE Compra >= 3
+      AND Tienda NOT IN ('MORELIAAMERICAS', 'OUTLETPUEBLA')
     ORDER BY PorcentajeST DESC
   `;
   
   return sql;
 }
 
-function buildModelTableQuery(filters = {}, selectedStores = []) {
+function buildModelTableQuery(filters = {}, selectedStores = [], selectedCollections = [], selectedCategorias = []) {
   const tablePath = getFullTablePath();
   
   const whereConditions = [];
   
-  // Aplicar filtros generales (NO incluir Tienda aquí)
+  // Aplicar filtros globales
   Object.keys(filters).forEach(column => {
-    if (column === 'Tienda') return; // Ignorar filtro Tienda aquí
-    
     const values = filters[column];
     if (values && values.length > 0) {
-      const escapedValues = values.map(v => `'${v.replace(/'/g, "\\'")}'`).join(',');
-      whereConditions.push(`${column} IN (${escapedValues})`);
+      // Manejar MODELO como numérico
+      if (column === 'MODELO') {
+        const numericValues = values.join(',');
+        whereConditions.push(`${column} IN (${numericValues})`);
+      } else {
+        const escapedValues = values.map(v => `'${v.replace(/'/g, "\\'")}'`).join(',');
+        whereConditions.push(`${column} IN (${escapedValues})`);
+      }
     }
   });
   
-  // Filtro de tiendas seleccionadas en la tabla
+  // Filtros de selecciones en tablas
   if (selectedStores && selectedStores.length > 0) {
     const escapedStores = selectedStores.map(v => `'${v.replace(/'/g, "\\'")}'`).join(',');
     whereConditions.push(`Tienda IN (${escapedStores})`);
+  }
+  
+  if (selectedCollections && selectedCollections.length > 0) {
+    const escapedCollections = selectedCollections.map(v => `'${v.replace(/'/g, "\\'")}'`).join(',');
+    whereConditions.push(`Collection IN (${escapedCollections})`);
+  }
+  
+  if (selectedCategorias && selectedCategorias.length > 0) {
+    const escapedCategorias = selectedCategorias.map(v => `'${v.replace(/'/g, "\\'")}'`).join(',');
+    whereConditions.push(`Cat_1 IN (${escapedCategorias})`);
   }
   
   const whereClause = whereConditions.length > 0 
@@ -119,6 +155,128 @@ function buildModelTableQuery(filters = {}, selectedStores = []) {
       FROM ${tablePath}
       ${whereClause}
       GROUP BY MODELO
+    )
+    SELECT *
+    FROM Aggregated
+    WHERE Compra >= 3
+    ORDER BY PorcentajeST DESC
+  `;
+  
+  return sql;
+}
+
+function buildCollectionTableQuery(filters = {}, selectedModels = [], selectedStores = [], selectedCategorias = []) {
+  const tablePath = getFullTablePath();
+  
+  const whereConditions = [];
+  
+  // Aplicar filtros globales
+  Object.keys(filters).forEach(column => {
+    const values = filters[column];
+    if (values && values.length > 0) {
+      // Manejar MODELO como numérico
+      if (column === 'MODELO') {
+        const numericValues = values.join(',');
+        whereConditions.push(`${column} IN (${numericValues})`);
+      } else {
+        const escapedValues = values.map(v => `'${v.replace(/'/g, "\\'")}'`).join(',');
+        whereConditions.push(`${column} IN (${escapedValues})`);
+      }
+    }
+  });
+  
+  // Filtros de selecciones en tablas
+  if (selectedModels && selectedModels.length > 0) {
+    const numericModels = selectedModels.join(',');
+    whereConditions.push(`MODELO IN (${numericModels})`);
+  }
+  
+  if (selectedStores && selectedStores.length > 0) {
+    const escapedStores = selectedStores.map(v => `'${v.replace(/'/g, "\\'")}'`).join(',');
+    whereConditions.push(`Tienda IN (${escapedStores})`);
+  }
+  
+  if (selectedCategorias && selectedCategorias.length > 0) {
+    const escapedCategorias = selectedCategorias.map(v => `'${v.replace(/'/g, "\\'")}'`).join(',');
+    whereConditions.push(`Cat_1 IN (${escapedCategorias})`);
+  }
+  
+  const whereClause = whereConditions.length > 0 
+    ? `WHERE ${whereConditions.join(' AND ')}` 
+    : '';
+  
+  const sql = `
+    WITH Aggregated AS (
+      SELECT
+        Collection,
+        SUM(${CONFIG.METRICS.COMPRA}) AS Compra,
+        SUM(${CONFIG.METRICS.VENTA}) AS Venta,
+        SUM(${CONFIG.METRICS.INVENTARIO}) AS Inventario,
+        SAFE_DIVIDE(SUM(${CONFIG.METRICS.VENTA}), SUM(${CONFIG.METRICS.COMPRA})) AS PorcentajeST
+      FROM ${tablePath}
+      ${whereClause}
+      GROUP BY Collection
+    )
+    SELECT *
+    FROM Aggregated
+    WHERE Compra >= 3
+    ORDER BY PorcentajeST DESC
+  `;
+  
+  return sql;
+}
+
+function buildCategoriaTableQuery(filters = {}, selectedModels = [], selectedStores = [], selectedCollections = []) {
+  const tablePath = getFullTablePath();
+  
+  const whereConditions = [];
+  
+  // Aplicar filtros globales
+  Object.keys(filters).forEach(column => {
+    const values = filters[column];
+    if (values && values.length > 0) {
+      // Manejar MODELO como numérico
+      if (column === 'MODELO') {
+        const numericValues = values.join(',');
+        whereConditions.push(`${column} IN (${numericValues})`);
+      } else {
+        const escapedValues = values.map(v => `'${v.replace(/'/g, "\\'")}'`).join(',');
+        whereConditions.push(`${column} IN (${escapedValues})`);
+      }
+    }
+  });
+  
+  // Filtros de selecciones en tablas
+  if (selectedModels && selectedModels.length > 0) {
+    const numericModels = selectedModels.join(',');
+    whereConditions.push(`MODELO IN (${numericModels})`);
+  }
+  
+  if (selectedStores && selectedStores.length > 0) {
+    const escapedStores = selectedStores.map(v => `'${v.replace(/'/g, "\\'")}'`).join(',');
+    whereConditions.push(`Tienda IN (${escapedStores})`);
+  }
+  
+  if (selectedCollections && selectedCollections.length > 0) {
+    const escapedCollections = selectedCollections.map(v => `'${v.replace(/'/g, "\\'")}'`).join(',');
+    whereConditions.push(`Collection IN (${escapedCollections})`);
+  }
+  
+  const whereClause = whereConditions.length > 0 
+    ? `WHERE ${whereConditions.join(' AND ')}` 
+    : '';
+  
+  const sql = `
+    WITH Aggregated AS (
+      SELECT
+        Cat_1 AS Categoria,
+        SUM(${CONFIG.METRICS.COMPRA}) AS Compra,
+        SUM(${CONFIG.METRICS.VENTA}) AS Venta,
+        SUM(${CONFIG.METRICS.INVENTARIO}) AS Inventario,
+        SAFE_DIVIDE(SUM(${CONFIG.METRICS.VENTA}), SUM(${CONFIG.METRICS.COMPRA})) AS PorcentajeST
+      FROM ${tablePath}
+      ${whereClause}
+      GROUP BY Cat_1
     )
     SELECT *
     FROM Aggregated
