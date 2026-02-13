@@ -72,3 +72,66 @@ function getFilteredDistinctValues(columnName, activeFilters) {
   const rows = runBigQueryJob(sql);
   return rows.map(row => row.f[0].v);
 }
+function getDistinctValuesFiltered(columnName, excludeValues) {
+  const excludeClause = excludeValues && excludeValues.length > 0
+    ? `AND ${columnName} NOT IN (${excludeValues.map(v => `'${v}'`).join(',')})`
+    : '';
+  
+  const sql = `
+    SELECT DISTINCT ${columnName}
+    FROM ${getFullTablePath()}
+    WHERE ${columnName} IS NOT NULL ${excludeClause}
+    ORDER BY ${columnName}
+  `;
+  
+  const rows = runBigQueryJob(sql);
+  return rows.map(row => row.f[0].v);
+}
+
+
+function cargarImagenesModelos() {
+  try {
+    const FOLDER_ID = '1sqhOx6tRcFxDkbvBD1jXbcFUoXbD1HnF';
+    
+    Logger.log('Intentando acceder a carpeta: ' + FOLDER_ID);
+    
+    const folder = DriveApp.getFolderById(FOLDER_ID);
+    const folderName = folder.getName();
+    
+    Logger.log('Carpeta encontrada: ' + folderName);
+    
+    const files = folder.getFiles();
+    const catalogo = {};
+    let contador = 0;
+    
+    while (files.hasNext()) {
+      const file = files.next();
+      const fileName = file.getName();
+      const mimeType = file.getMimeType();
+      
+      Logger.log('Archivo encontrado: ' + fileName + ' (Tipo: ' + mimeType + ')');
+      
+      // Solo procesar JPG
+      if (mimeType === MimeType.JPEG || fileName.toLowerCase().endsWith('.jpg') || fileName.toLowerCase().endsWith('.jpeg')) {
+        const modelo = fileName.replace(/\.(jpg|jpeg)$/i, ''); // Quitar extensión
+        const fileId = file.getId();
+        const url = `https://lh3.googleusercontent.com/d/${fileId}=w400`;
+        
+        catalogo[modelo] = url;
+        contador++;
+        
+        Logger.log('Imagen agregada - Modelo: ' + modelo + ' | URL: ' + url);
+      }
+    }
+    
+    Logger.log('Total imágenes cargadas: ' + contador);
+    Logger.log('Catálogo completo: ' + JSON.stringify(catalogo));
+    
+    return catalogo;
+    
+  } catch (error) {
+    Logger.log('ERROR cargando catálogo: ' + error.toString());
+    Logger.log('Stack trace: ' + error.stack);
+    return {};
+  }
+}
