@@ -56,6 +56,9 @@ FILTER_DEPENDENCIES: {
   }
 };
 
+// Tiendas excluidas de visualización
+EXCLUDED_STORES: ['MORELIAAMERICAS', 'OUTLETPUEBLA']
+
 function getFullTablePath() {
   return `\`${CONFIG.PROJECT_ID}.${CONFIG.DATASET_ID}.${CONFIG.TABLE_ID}\``;
 }
