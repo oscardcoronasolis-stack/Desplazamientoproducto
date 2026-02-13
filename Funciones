@@ -5,11 +5,18 @@ const appState = {
   filterData: {},
   selectedStores: [],
   selectedModels: [],
+  selectedCollections: [],
+  selectedCategorias: [],
   globalSTPercent: 0,
   tiendasData: [],
   modelosData: [],
+  coleccionesData: [],
+  categoriasData: [],
+  imagenesModelos: {},
   sortStateTiendas: { column: null, ascending: true },
-  sortStateModelos: { column: null, ascending: true }
+  sortStateModelos: { column: null, ascending: true },
+  sortStateColecciones: { column: null, ascending: true },
+  sortStateCategorias: { column: null, ascending: true }
 };
 
 // ========== INICIALIZACIÓN ==========
@@ -20,10 +27,26 @@ window.addEventListener('DOMContentLoaded', () => {
 function initializeApp() {
   showLoading(true);
   
+  // Cargar catálogo de imágenes primero
   google.script.run
-    .withSuccessHandler(onFilterDataLoaded)
+    .withSuccessHandler(function(catalogo) {
+      appState.imagenesModelos = catalogo;
+      
+      // DEBUGGING - Ver en consola del navegador
+      console.log('=== CATÁLOGO DE IMÁGENES CARGADO ===');
+      console.log('Total imágenes:', Object.keys(catalogo).length);
+      console.log('Modelos con imagen:', Object.keys(catalogo));
+      console.log('Catálogo completo:', catalogo);
+      console.log('=====================================');
+      
+      // Luego cargar filtros
+      google.script.run
+        .withSuccessHandler(onFilterDataLoaded)
+        .withFailureHandler(onError)
+        .getInitialFilterData();
+    })
     .withFailureHandler(onError)
-    .getInitialFilterData();
+    .getCatalogoImagenes();
   
   setupEventListeners();
 }
@@ -32,6 +55,10 @@ function setupEventListeners() {
   document.getElementById('btnClearAll').addEventListener('click', clearAllAndSelections);
   document.getElementById('btnRefresh').addEventListener('click', refreshData);
   
+  // Modal de imagen
+  document.getElementById('imageModal').addEventListener('click', closeImageModal);
+  document.getElementById('imageModalClose').addEventListener('click', closeImageModal);
+  
   // Sorting en columnas
   document.querySelectorAll('#dataTableTiendas th.sortable').forEach(th => {
     th.addEventListener('click', (e) => handleSort(e, 'tiendas'));
@@ -39,6 +66,14 @@ function setupEventListeners() {
   
   document.querySelectorAll('#dataTableModelos th.sortable').forEach(th => {
     th.addEventListener('click', (e) => handleSort(e, 'modelos'));
+  });
+  
+  document.querySelectorAll('#dataTableColecciones th.sortable').forEach(th => {
+    th.addEventListener('click', (e) => handleSort(e, 'colecciones'));
+  });
+  
+  document.querySelectorAll('#dataTableCategorias th.sortable').forEach(th => {
+    th.addEventListener('click', (e) => handleSort(e, 'categorias'));
   });
 }
 
@@ -127,7 +162,6 @@ function handleFilterChange(columnName, selectElement) {
 function updateAllDependentFilters() {
   showLoading(true);
   
-  // Orden correcto de actualización (de menos dependiente a más dependiente)
   const orderedColumns = ['Collection', 'Tienda', 'Cat_1', 'Cat_2', 'MODELO', 'COLOR', 'TALLA'];
   let completedUpdates = 0;
   const totalUpdates = orderedColumns.length;
@@ -146,7 +180,6 @@ function updateAllDependentFilters() {
       return;
     }
     
-    // Pasar TODOS los filtros activos actuales
     google.script.run
       .withSuccessHandler(function(options) {
         updateSelectOptions(select, columnName, options);
@@ -175,7 +208,6 @@ function updateSelectOptions(selectElement, columnName, options) {
     selectElement.appendChild(option);
   });
   
-  // Si valores actuales ya no existen, limpiarlos
   const validValues = currentValues.filter(v => options.includes(v));
   if (validValues.length !== currentValues.length) {
     if (validValues.length > 0) {
@@ -192,13 +224,14 @@ function clearAllAndSelections() {
   appState.activeFilters = {};
   appState.selectedStores = [];
   appState.selectedModels = [];
+  appState.selectedCollections = [];
+  appState.selectedCategorias = [];
   
   google.script.run
     .withSuccessHandler(function(data) {
       appState.filterData = data;
       renderFilters(data);
       
-      // Re-aplicar default Couture
       if (data['Linea'] && data['Linea'].options.includes('Couture')) {
         appState.activeFilters['Linea'] = ['Couture'];
         const lineaSelect = document.getElementById('filter_Linea');
@@ -224,7 +257,7 @@ function loadAllData() {
   showLoading(true);
   
   let completedCalls = 0;
-  const totalCalls = 3;
+  const totalCalls = 5;
   
   function checkComplete() {
     completedCalls++;
@@ -248,7 +281,7 @@ function loadAllData() {
       checkComplete();
     })
     .withFailureHandler(onError)
-    .getTableData(appState.activeFilters, appState.selectedModels);
+    .getTableData(appState.activeFilters, appState.selectedModels, appState.selectedCollections, appState.selectedCategorias);
   
   google.script.run
     .withSuccessHandler(function(data) {
@@ -257,7 +290,25 @@ function loadAllData() {
       checkComplete();
     })
     .withFailureHandler(onError)
-    .getModelTableData(appState.activeFilters, appState.selectedStores);
+    .getModelTableData(appState.activeFilters, appState.selectedStores, appState.selectedCollections, appState.selectedCategorias);
+  
+  google.script.run
+    .withSuccessHandler(function(data) {
+      appState.coleccionesData = data;
+      renderTableData('colecciones', data);
+      checkComplete();
+    })
+    .withFailureHandler(onError)
+    .getCollectionTableData(appState.activeFilters, appState.selectedModels, appState.selectedStores, appState.selectedCategorias);
+  
+  google.script.run
+    .withSuccessHandler(function(data) {
+      appState.categoriasData = data;
+      renderTableData('categorias', data);
+      checkComplete();
+    })
+    .withFailureHandler(onError)
+    .getCategoriaTableData(appState.activeFilters, appState.selectedModels, appState.selectedStores, appState.selectedCollections);
 }
 
 function onDataLoaded(data) {
@@ -270,7 +321,14 @@ function onDataLoaded(data) {
 }
 
 function renderTableData(tableType, data) {
-  const tbody = document.getElementById(tableType === 'tiendas' ? 'tableBodyTiendas' : 'tableBodyModelos');
+  const tbodyId = {
+    'tiendas': 'tableBodyTiendas',
+    'modelos': 'tableBodyModelos',
+    'colecciones': 'tableBodyColecciones',
+    'categorias': 'tableBodyCategorias'
+  }[tableType];
+  
+  const tbody = document.getElementById(tbodyId);
   tbody.innerHTML = '';
   
   data.forEach(row => {
@@ -278,21 +336,17 @@ function renderTableData(tableType, data) {
     
     if (tableType === 'tiendas') {
       tr.dataset.tienda = row.tienda;
-      if (appState.selectedStores.includes(row.tienda)) {
-        tr.classList.add('selected');
-      }
+      if (appState.selectedStores.includes(row.tienda)) tr.classList.add('selected');
       tr.addEventListener('click', () => handleStoreClick(row.tienda, tr));
       
-      const tdTienda = document.createElement('td');
-      tdTienda.textContent = row.tienda;
-      tdTienda.title = row.tienda;
-      tr.appendChild(tdTienda);
+      const td = document.createElement('td');
+      td.textContent = row.tienda;
+      td.title = row.tienda;
+      tr.appendChild(td);
       
-    } else {
+    } else if (tableType === 'modelos') {
       tr.dataset.modelo = row.modelo;
-      if (appState.selectedModels.includes(row.modelo)) {
-        tr.classList.add('selected');
-      }
+      if (appState.selectedModels.includes(row.modelo)) tr.classList.add('selected');
       tr.addEventListener('click', () => handleModelClick(row.modelo, tr));
       
       const tdModelo = document.createElement('td');
@@ -300,9 +354,69 @@ function renderTableData(tableType, data) {
       tdModelo.title = row.modelo;
       tr.appendChild(tdModelo);
       
+      // DEBUGGING - Ver qué está pasando
+      console.log('--- RENDERIZANDO MODELO ---');
+      console.log('Modelo:', row.modelo);
+      console.log('Tipo de dato:', typeof row.modelo);
+      console.log('¿Existe en catálogo?', row.modelo in appState.imagenesModelos);
+      console.log('Catálogo tiene:', Object.keys(appState.imagenesModelos));
+      
+      // COLUMNA DE IMAGEN
+      const tdImagen = document.createElement('td');
+      tdImagen.className = 'model-image-cell';
+      
+      const imageUrl = appState.imagenesModelos[row.modelo];
+      
+      console.log('URL encontrada:', imageUrl);
+      console.log('---------------------------');
+      
+      if (imageUrl) {
+        const container = document.createElement('div');
+        container.className = 'model-image-container';
+        
+        const img = document.createElement('img');
+        img.src = imageUrl;
+        img.className = 'model-image';
+        img.alt = row.modelo;
+        img.addEventListener('click', (e) => {
+          e.stopPropagation();
+          openImageModal(imageUrl);
+        });
+        
+        container.appendChild(img);
+        tdImagen.appendChild(container);
+      } else {
+        const noImage = document.createElement('div');
+        noImage.className = 'model-no-image';
+        noImage.textContent = 'SinFoto';
+        tdImagen.appendChild(noImage);
+      }
+      
+      tr.appendChild(tdImagen);
+      
       const tdCategoria = document.createElement('td');
       tdCategoria.textContent = row.categoria;
       tr.appendChild(tdCategoria);
+      
+    } else if (tableType === 'colecciones') {
+      tr.dataset.collection = row.collection;
+      if (appState.selectedCollections.includes(row.collection)) tr.classList.add('selected');
+      tr.addEventListener('click', () => handleCollectionClick(row.collection, tr));
+      
+      const td = document.createElement('td');
+      td.textContent = row.collection;
+      td.title = row.collection;
+      tr.appendChild(td);
+      
+    } else if (tableType === 'categorias') {
+      tr.dataset.categoria = row.categoria;
+      if (appState.selectedCategorias.includes(row.categoria)) tr.classList.add('selected');
+      tr.addEventListener('click', () => handleCategoriaClick(row.categoria, tr));
+      
+      const td = document.createElement('td');
+      td.textContent = row.categoria;
+      td.title = row.categoria;
+      tr.appendChild(td);
     }
     
     const tdCompra = document.createElement('td');
@@ -321,7 +435,7 @@ function renderTableData(tableType, data) {
     tdPorcentaje.className = 'text-right';
     tdPorcentaje.textContent = formatPercentage(row.porcentajeST);
     
-    applyRedGradient(tdPorcentaje, row.porcentajeST, appState.globalSTPercent);
+    applyHeatmap(tdPorcentaje, row.porcentajeST, appState.globalSTPercent);
     
     tr.appendChild(tdCompra);
     tr.appendChild(tdVenta);
@@ -332,12 +446,27 @@ function renderTableData(tableType, data) {
   });
 }
 
+// ========== MODAL DE IMAGEN ==========
+function openImageModal(imageUrl) {
+  document.getElementById('imageModalContent').src = imageUrl;
+  document.getElementById('imageModal').classList.add('active');
+}
+
+function closeImageModal() {
+  document.getElementById('imageModal').classList.remove('active');
+}
+
 // ========== SORTING ==========
 function handleSort(event, tableType) {
   const column = event.target.dataset.column;
   if (!column) return;
   
-  const sortState = tableType === 'tiendas' ? appState.sortStateTiendas : appState.sortStateModelos;
+  const sortState = {
+    'tiendas': appState.sortStateTiendas,
+    'modelos': appState.sortStateModelos,
+    'colecciones': appState.sortStateColecciones,
+    'categorias': appState.sortStateCategorias
+  }[tableType];
   
   if (sortState.column === column) {
     sortState.ascending = !sortState.ascending;
@@ -346,16 +475,25 @@ function handleSort(event, tableType) {
     sortState.ascending = true;
   }
   
-  // Limpiar clases de ordenamiento
-  document.querySelectorAll(`#dataTable${tableType === 'tiendas' ? 'Tiendas' : 'Modelos'} th`).forEach(th => {
+  const tableId = {
+    'tiendas': 'dataTableTiendas',
+    'modelos': 'dataTableModelos',
+    'colecciones': 'dataTableColecciones',
+    'categorias': 'dataTableCategorias'
+  }[tableType];
+  
+  document.querySelectorAll(`#${tableId} th`).forEach(th => {
     th.classList.remove('sorted-asc', 'sorted-desc');
   });
   
-  // Aplicar clase actual
   event.target.classList.add(sortState.ascending ? 'sorted-asc' : 'sorted-desc');
   
-  // Ordenar datos
-  const data = tableType === 'tiendas' ? [...appState.tiendasData] : [...appState.modelosData];
+  const data = [...{
+    'tiendas': appState.tiendasData,
+    'modelos': appState.modelosData,
+    'colecciones': appState.coleccionesData,
+    'categorias': appState.categoriasData
+  }[tableType]];
   
   data.sort((a, b) => {
     let valA = a[column];
@@ -386,7 +524,7 @@ function handleStoreClick(tienda, rowElement) {
     rowElement.classList.add('selected');
   }
   
-  reloadModelTable();
+  reloadCrossFilteredTables();
 }
 
 function handleModelClick(modelo, rowElement) {
@@ -400,52 +538,125 @@ function handleModelClick(modelo, rowElement) {
     rowElement.classList.add('selected');
   }
   
-  reloadStoreTable();
+  reloadCrossFilteredTables();
 }
 
-function reloadStoreTable() {
+function handleCollectionClick(collection, rowElement) {
+  const index = appState.selectedCollections.indexOf(collection);
+  
+  if (index > -1) {
+    appState.selectedCollections.splice(index, 1);
+    rowElement.classList.remove('selected');
+  } else {
+    appState.selectedCollections.push(collection);
+    rowElement.classList.add('selected');
+  }
+  
+  reloadCrossFilteredTables();
+}
+
+function handleCategoriaClick(categoria, rowElement) {
+  const index = appState.selectedCategorias.indexOf(categoria);
+  
+  if (index > -1) {
+    appState.selectedCategorias.splice(index, 1);
+    rowElement.classList.remove('selected');
+  } else {
+    appState.selectedCategorias.push(categoria);
+    rowElement.classList.add('selected');
+  }
+  
+  reloadCrossFilteredTables();
+}
+
+function updateKPIsFromSelections() {
+  if (appState.selectedStores.length === 0 && 
+      appState.selectedModels.length === 0 && 
+      appState.selectedCollections.length === 0 && 
+      appState.selectedCategorias.length === 0) {
+    return;
+  }
+  
+  google.script.run
+    .withSuccessHandler(function(data) {
+      onDataLoaded(data);
+    })
+    .withFailureHandler(onError)
+    .getKPIsFromSelections(
+      appState.activeFilters,
+      appState.selectedStores,
+      appState.selectedModels,
+      appState.selectedCollections,
+      appState.selectedCategorias
+    );
+}
+
+function reloadCrossFilteredTables() {
   showLoading(true);
+  let completed = 0;
+  
+  function check() {
+    completed++;
+    if (completed === 5) showLoading(false);
+  }
+  
+  updateKPIsFromSelections();
+  check();
+  
   google.script.run
     .withSuccessHandler(function(data) {
       appState.tiendasData = data;
       renderTableData('tiendas', data);
-      showLoading(false);
+      check();
     })
     .withFailureHandler(onError)
-    .getTableData(appState.activeFilters, appState.selectedModels);
-}
-
-function reloadModelTable() {
-  showLoading(true);
+    .getTableData(appState.activeFilters, appState.selectedModels, appState.selectedCollections, appState.selectedCategorias);
+  
   google.script.run
     .withSuccessHandler(function(data) {
       appState.modelosData = data;
       renderTableData('modelos', data);
-      showLoading(false);
+      check();
     })
     .withFailureHandler(onError)
-    .getModelTableData(appState.activeFilters, appState.selectedStores);
+    .getModelTableData(appState.activeFilters, appState.selectedStores, appState.selectedCollections, appState.selectedCategorias);
+  
+  google.script.run
+    .withSuccessHandler(function(data) {
+      appState.coleccionesData = data;
+      renderTableData('colecciones', data);
+      check();
+    })
+    .withFailureHandler(onError)
+    .getCollectionTableData(appState.activeFilters, appState.selectedModels, appState.selectedStores, appState.selectedCategorias);
+  
+  google.script.run
+    .withSuccessHandler(function(data) {
+      appState.categoriasData = data;
+      renderTableData('categorias', data);
+      check();
+    })
+    .withFailureHandler(onError)
+    .getCategoriaTableData(appState.activeFilters, appState.selectedModels, appState.selectedStores, appState.selectedCollections);
 }
 
-// ========== FORMATO DE DEGRADADO ROJO ==========
-function applyRedGradient(element, value, threshold) {
-  if (value >= threshold) return;
-  
-  const diff = threshold - value;
-  const maxDiff = threshold;
-  const intensity = Math.min(diff / maxDiff, 1);
-  
-  if (intensity <= 0.2) {
-    element.classList.add('percent-red-1');
-  } else if (intensity <= 0.4) {
-    element.classList.add('percent-red-2');
-  } else if (intensity <= 0.6) {
-    element.classList.add('percent-red-3');
-  } else if (intensity <= 0.8) {
-    element.classList.add('percent-red-4');
-  } else {
-    element.classList.add('percent-red-5');
+// ========== FORMATO DE HEATMAP ==========
+function applyHeatmap(element, value, threshold) {
+  for (let i = 0; i < 32; i++) {
+    element.classList.remove(`heatmap-${i}`);
   }
+  
+  let normalizedValue;
+  
+  if (value >= threshold) {
+    const range = Math.max(threshold * 0.5, 10);
+    normalizedValue = 16 + Math.min(15, Math.floor(((value - threshold) / range) * 15));
+  } else {
+    normalizedValue = Math.floor((value / threshold) * 16);
+  }
+  
+  normalizedValue = Math.max(0, Math.min(31, normalizedValue));
+  element.classList.add(`heatmap-${normalizedValue}`);
 }
 
 function refreshData() {
@@ -469,6 +680,7 @@ function formatNumber(num) {
 }
 
 function formatPercentage(num) {
-  return num.toFixed(1) + '%';
+  return Math.round(num) + '%';
 }
 </script>
+```
