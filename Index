@@ -115,6 +115,7 @@
             <thead id="headerModelos">
               <tr>
                 <th data-column="modelo">Modelo</th>
+                <th>Imagen</th>
                 <th data-column="categoria">Categoría</th>
                 <th class="text-center sortable" data-column="compra">Compra</th>
                 <th class="text-center sortable" data-column="venta">Venta</th>
@@ -129,6 +130,52 @@
         </div>
       </div>
 
+      <!-- Tabla Colecciones -->
+      <div class="table-section">
+        <div class="table-header">
+          <h2 class="table-title">Colecciones</h2>
+        </div>
+        <div class="table-container">
+          <table class="data-table compact-table" id="dataTableColecciones">
+            <thead id="headerColecciones">
+              <tr>
+                <th data-column="collection">Colección</th>
+                <th class="text-center sortable" data-column="compra">Compra</th>
+                <th class="text-center sortable" data-column="venta">Venta</th>
+                <th class="text-center sortable" data-column="inventario">Inv.</th>
+                <th class="text-right sortable" data-column="porcentajeST">% ST</th>
+              </tr>
+            </thead>
+            <tbody id="tableBodyColecciones">
+              <!-- Datos dinámicos -->
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      <!-- Tabla Categorías -->
+      <div class="table-section">
+        <div class="table-header">
+          <h2 class="table-title">Categorías</h2>
+        </div>
+        <div class="table-container">
+          <table class="data-table compact-table" id="dataTableCategorias">
+            <thead id="headerCategorias">
+              <tr>
+                <th data-column="categoria">Categoría</th>
+                <th class="text-center sortable" data-column="compra">Compra</th>
+                <th class="text-center sortable" data-column="venta">Venta</th>
+                <th class="text-center sortable" data-column="inventario">Inv.</th>
+                <th class="text-right sortable" data-column="porcentajeST">% ST</th>
+              </tr>
+            </thead>
+            <tbody id="tableBodyCategorias">
+              <!-- Datos dinámicos -->
+            </tbody>
+          </table>
+        </div>
+      </div>
+
     </section>
 
     <div class="loading" id="loading">
@@ -137,6 +184,12 @@
     </div>
 
   </main>
+
+  <!-- Modal de imagen -->
+  <div class="image-modal" id="imageModal">
+    <span class="image-modal-close" id="imageModalClose">&times;</span>
+    <img id="imageModalContent" src="" alt="Modelo">
+  </div>
 
   <?!= include('Funciones'); ?>
   
