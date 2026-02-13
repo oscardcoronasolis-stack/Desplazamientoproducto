@@ -55,14 +55,19 @@ function getInitialFilterData() {
   const filterData = {};
   
   CONFIG.FILTER_COLUMNS.forEach(column => {
+    const excludeValues = column === 'Tienda' ? CONFIG.EXCLUDED_STORES : [];
+    
     filterData[column] = {
       label: CONFIG.COLUMN_LABELS[column],
-      options: getDistinctValues(column)
+      options: column === 'Tienda' 
+        ? getDistinctValuesFiltered(column, excludeValues)
+        : getDistinctValues(column)
     };
   });
   
   return filterData;
 }
+
 
 function getFilterOptionsWithDependency(columnName, activeFilters) {
   try {
@@ -98,9 +103,9 @@ function getFilterOptionsWithDependency(columnName, activeFilters) {
 }
 
 
-function getTableData(filters, selectedModels) {
+function getTableData(filters, selectedModels, selectedCollections, selectedCategorias) {
   try {
-    const sql = buildTableQuery(filters, selectedModels);
+    const sql = buildTableQuery(filters, selectedModels, selectedCollections, selectedCategorias);
     const rows = runBigQueryJob(sql);
     
     return rows.map(row => ({
@@ -117,15 +122,14 @@ function getTableData(filters, selectedModels) {
   }
 }
 
-function getModelTableData(filters, selectedStores) {
+function getModelTableData(filters, selectedStores, selectedCollections, selectedCategorias) {
   try {
-    const sql = buildModelTableQuery(filters, selectedStores);
+    const sql = buildModelTableQuery(filters, selectedStores, selectedCollections, selectedCategorias);
     const rows = runBigQueryJob(sql);
     
     return rows.map(row => ({
-    
-    modelo: row.f[0].v,
-categoria: row.f[1].v,
+      modelo: row.f[0].v,
+      categoria: row.f[1].v,
       compra: parseFloat(row.f[2].v || 0),
       venta: parseFloat(row.f[3].v || 0),
       inventario: parseFloat(row.f[4].v || 0),
@@ -136,4 +140,101 @@ categoria: row.f[1].v,
     Logger.log('Error obteniendo tabla modelos: ' + error);
     throw error;
   }
+}
+
+
+function getCollectionTableData(filters, selectedModels, selectedStores, selectedCategorias) {
+  try {
+    const sql = buildCollectionTableQuery(filters, selectedModels, selectedStores, selectedCategorias);
+    const rows = runBigQueryJob(sql);
+    
+    if (!rows || rows.length === 0) {
+      return [];
+    }
+    
+    return rows.map(row => ({
+      collection: row.f[0].v,
+      compra: parseFloat(row.f[1].v || 0),
+      venta: parseFloat(row.f[2].v || 0),
+      inventario: parseFloat(row.f[3].v || 0),
+      porcentajeST: parseFloat(row.f[4].v || 0) * 100
+    }));
+    
+  } catch (error) {
+    Logger.log('Error obteniendo tabla colecciones: ' + error);
+    return [];
+  }
+}
+
+function getCategoriaTableData(filters, selectedModels, selectedStores, selectedCollections) {
+  try {
+    const sql = buildCategoriaTableQuery(filters, selectedModels, selectedStores, selectedCollections);
+    const rows = runBigQueryJob(sql);
+    
+    if (!rows || rows.length === 0) {
+      return [];
+    }
+    
+    return rows.map(row => ({
+      categoria: row.f[0].v,
+      compra: parseFloat(row.f[1].v || 0),
+      venta: parseFloat(row.f[2].v || 0),
+      inventario: parseFloat(row.f[3].v || 0),
+      porcentajeST: parseFloat(row.f[4].v || 0) * 100
+    }));
+    
+  } catch (error) {
+    Logger.log('Error obteniendo tabla categorías: ' + error);
+    return [];
+  }
+}
+
+
+function getKPIsFromSelections(filters, selectedStores, selectedModels, selectedCollections, selectedCategorias) {
+  try {
+    // Construir filtros combinados
+    const combinedFilters = {...filters};
+    
+    if (selectedStores && selectedStores.length > 0) {
+      combinedFilters['Tienda'] = selectedStores;
+    }
+    if (selectedModels && selectedModels.length > 0) {
+      // MODELO debe ser array de números
+      combinedFilters['MODELO'] = selectedModels;
+    }
+    if (selectedCollections && selectedCollections.length > 0) {
+      combinedFilters['Collection'] = selectedCollections;
+    }
+    if (selectedCategorias && selectedCategorias.length > 0) {
+      combinedFilters['Cat_1'] = selectedCategorias;
+    }
+    
+    const sql = buildDashboardQuery(combinedFilters);
+    const rows = runBigQueryJob(sql);
+    
+    if (rows.length === 0) {
+      return {
+        inventario: 0,
+        venta: 0,
+        compra: 0,
+        porcentajeST: 0
+      };
+    }
+    
+    const row = rows[0].f;
+    return {
+      inventario: parseFloat(row[0].v || 0),
+      venta: parseFloat(row[1].v || 0),
+      compra: parseFloat(row[2].v || 0),
+      porcentajeST: parseFloat(row[3].v || 0) * 100
+    };
+    
+  } catch (error) {
+    Logger.log('Error obteniendo KPIs: ' + error);
+    throw error;
+  }
+}
+
+function getCatalogoImagenes() {
+  return cargarImagenesModelos();
 }
